@@ -33,14 +33,14 @@ class Fraction
     /**
      * numerator
      *
-     * @var integer
+     * @var string
      */
     private $numerator;
 
     /**
      * denominator
      *
-     * @var initeger
+     * @var string
      */
     private $denominator;
 
@@ -50,38 +50,41 @@ class Fraction
      * @author Tom Haskins-Vaughan <tom@tomhv.uk>
      * @since  0.1.0
      *
-     * @param integer $numerator
-     * @param integer $denominator
+     * @param mixed $numerator (integer or integer string)
+     * @param mixed $denominator (integer or integer string)
      */
     public function __construct($numerator, $denominator = 1)
     {
-        if (!is_int($numerator)) {
+        if (!static::is_int($numerator)) {
             throw new InvalidNumeratorException(
                 'Numerator must be an integer'
             );
         }
 
-        if (!is_int($denominator)) {
+        if (!static::is_int($denominator)) {
             throw new InvalidDenominatorException(
                 'Denominator must be an integer'
             );
         }
 
-        if ((int) $denominator < 1) {
+        $numerator = (string)$numerator;
+        $denominator = (string)$denominator;
+
+        if (static::cmp($denominator, '1') == -1) {
             throw new InvalidDenominatorException(
                 'Denominator must be an integer greater than zero'
             );
         }
 
-        if (0 == $numerator) {
-            $this->numerator = (int) 0;
-            $this->denominator = (int) 1;
+        if (0 == self::sgn($numerator)) {
+            $this->numerator = '0';
+            $this->denominator = '1';
 
             return;
         }
 
-        $this->numerator = (int) $numerator;
-        $this->denominator = (int) $denominator;
+        $this->numerator = $numerator;
+        $this->denominator = $denominator;
 
         $this->simplify();
     }
@@ -100,29 +103,29 @@ class Fraction
             return '1';
         }
 
-        if (-1*$this->numerator === $this->denominator) {
+        if (bcmul('-1', $this->numerator, 0) === $this->denominator) {
             return '-1';
         }
 
-        if (1 === $this->denominator) {
+        if (static::cmp('1', $this->denominator) == 0) {
             return (string) $this->numerator;
         }
 
-        if (abs($this->numerator) > abs($this->denominator)) {
-            $whole = floor(abs($this->numerator) / $this->denominator);
+        if (static::cmp(static::abs($this->numerator), static::abs($this->denominator)) == 1) {
+            $whole = bcdiv(static::abs($this->numerator), $this->denominator, 0);
 
-            if ($this->numerator < 0) {
-                $whole *= -1;
+            if (static::sgn($this->numerator) == -1) {
+                $whole = bcmul($whole, '-1', 0);
             }
 
-            return sprintf('%d %d/%d',
+            return sprintf('%s %s/%s',
                 $whole,
-                abs($this->numerator % $this->denominator),
+                static::abs( bcmod($this->numerator, $this->denominator) ),
                 $this->denominator
             );
         }
 
-        return sprintf('%d/%d',
+        return sprintf('%s/%s',
             $this->numerator,
             $this->denominator
         );
@@ -134,7 +137,7 @@ class Fraction
      * @author Tom Haskins-Vaughan <tom@tomhv.uk>
      * @since  0.1.0
      *
-     * @return integer
+     * @return string
      */
     public function getNumerator()
     {
@@ -147,7 +150,7 @@ class Fraction
      * @author Tom Haskins-Vaughan <tom@tomhv.uk>
      * @since  0.1.0
      *
-     * @return integer
+     * @return string
      */
     public function getDenominator()
     {
@@ -162,14 +165,14 @@ class Fraction
      * @author Tom Haskins-Vaughan <tom@tomhv.uk>
      * @since  0.1.0
      *
-     * @return integer
+     * @return void
      */
     private function simplify()
     {
         $gcd = $this->getGreatestCommonDivisor();
 
-        $this->numerator /= $gcd;
-        $this->denominator /= $gcd;
+        $this->numerator = bcdiv($this->numerator, $gcd, 0);
+        $this->denominator = bcdiv($this->denominator, $gcd, 0);
     }
 
     /**
@@ -182,26 +185,38 @@ class Fraction
      */
     private function getGreatestCommonDivisor()
     {
-        $a = $this->numerator;
-        $b = $this->denominator;
+        return $this->calculateGreatestCommonDivisor($this->numerator, $this->denominator);
+    }
 
+    /**
+     * Calculate greatest common divisor between two number
+     *
+     * @author Tom Haskins-Vaughan <tom@tomhv.uk>
+     * @since  0.1.0
+     *
+     * @param string first value
+     * @param string second value
+     *
+     * @return integer
+     */
+    private function calculateGreatestCommonDivisor($a, $b) {
         // ensure no negative values
-        $a = abs($a);
-        $b = abs($b);
+        $a = static::abs($a);
+        $b = static::abs($b);
 
         // ensure $a is greater than $b
-        if ($a < $b) {
+        if (static::cmp($a, $b) == -1) {
             list($b, $a) = array($a, $b);
         }
 
         // see if $b is already the greatest common divisor
-        $r = $a % $b;
+        $r = bcmod($a, $b);
 
         // if not, then keep trying
-        while ($r > 0) {
+        while (static::sgn($r) == 1) {
             $a = $b;
             $b = $r;
-            $r = $a % $b;
+            $r = bcmod($a, $b);
         }
 
         return $b;
@@ -219,8 +234,8 @@ class Fraction
      */
     public function multiply(Fraction $fraction)
     {
-        $numerator = $this->getNumerator() * $fraction->getNumerator();
-        $denominator = $this->getDenominator() * $fraction->getDenominator();
+        $numerator = bcmul($this->getNumerator(), $fraction->getNumerator(), 0);
+        $denominator = bcmul($this->getDenominator(), $fraction->getDenominator(), 0);
 
         return new static($numerator, $denominator);
     }
@@ -237,8 +252,8 @@ class Fraction
      */
     public function divide(Fraction $fraction)
     {
-        $numerator = $this->getNumerator() * $fraction->getDenominator();
-        $denominator = $this->getDenominator() * $fraction->getNumerator();
+        $numerator = bcmul($this->getNumerator(), $fraction->getDenominator(), 0);
+        $denominator = bcmul($this->getDenominator(), $fraction->getNumerator(), 0);
 
         return new static($numerator, $denominator);
     }
@@ -255,11 +270,17 @@ class Fraction
      */
     public function add(Fraction $fraction)
     {
-        $numerator = ($this->getNumerator() * $fraction->getDenominator())
-            + ($fraction->getNumerator() * $this->getDenominator());
+        $numerator = bcadd(
+            bcmul($this->getNumerator(), $fraction->getDenominator(), 0),
+            bcmul($fraction->getNumerator(), $this->getDenominator(), 0),
+            0
+        );
 
-        $denominator = $this->getDenominator()
-            * $fraction->getDenominator();
+        $denominator = bcmul(
+            $this->getDenominator(),
+            $fraction->getDenominator(),
+            0
+        );
 
         return new static($numerator, $denominator);
     }
@@ -276,11 +297,17 @@ class Fraction
      */
     public function subtract(Fraction $fraction)
     {
-        $numerator = ($this->getNumerator() * $fraction->getDenominator())
-            - ($fraction->getNumerator() * $this->getDenominator());
+        $numerator = bcsub(
+            bcmul($this->getNumerator(), $fraction->getDenominator(), 0),
+            bcmul($fraction->getNumerator(), $this->getDenominator(), 0),
+            0
+        );
 
-        $denominator = $this->getDenominator()
-            * $fraction->getDenominator();
+        $denominator = bcmul(
+            $this->getDenominator(),
+            $fraction->getDenominator(),
+            0
+        );
 
         return new static($numerator, $denominator);
     }
@@ -295,7 +322,7 @@ class Fraction
      */
     public function isInteger()
     {
-        return (1 === $this->getDenominator());
+        return static::cmp('1', $this->getDenominator()) == 0;
     }
 
     /**
@@ -310,7 +337,7 @@ class Fraction
      */
     public static function fromFloat($float)
     {
-        if (is_int($float)) {
+        if (static::is_int($float)) {
             return new self($float);
         }
 
@@ -408,14 +435,145 @@ class Fraction
      */
     public function isSameValueAs(Fraction $fraction)
     {
-        if ($this->getNumerator() != $fraction->getNumerator()) {
+        if (self::cmp($this->getNumerator(), $fraction->getNumerator()) != 0) {
             return false;
         }
 
-        if ($this->getDenominator() != $fraction->getDenominator()) {
+        if (self::cmp($this->getDenominator(), $fraction->getDenominator()) != 0) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Number sign
+     *
+     * @param  string $value number
+     * @return int        1 if number is positive, -1 if negative and 0 otherwiser
+     */
+    protected static function sgn($value) {
+        if ($value==='0') {
+            return 0;
+        } else if ($value[0]==='-') {
+              return -1;
+        }
+
+        return 1;
+    }
+
+    /**
+     * Check if value is integer or integer string
+     *
+     * @param  mixed  $value
+     * @return boolean
+     */
+    protected static function is_int($value) {
+        return
+            is_int($value)
+            ||
+            (
+                is_string($value)
+                &&
+                !!preg_match('#^[+-]?\d+$#', (string)$value)
+            )
+        ;
+    }
+
+    /**
+     * Compare two numbers
+     *
+     * @param  string $a
+     * @param  string $b
+     * @return integer  1 is $a>$b, -1 if $a<$b and 0 otherwise
+     */
+    protected static function cmp($a, $b) {
+        return static::sgn(bcsub($a, $b, 0));
+    }
+
+    /**
+     * Absolute value of number
+     *
+     * @param  string $value
+     * @return string
+     */
+    protected static function abs($value) {
+        if (static::sgn($value) == -1) {
+            return substr($value, 1);
+        }
+        return $value;
+    }
+
+    /**
+     * Compare two fractions
+     *
+     * @param  Fraction $fraction
+     * @return integer 1 is $a>$b, -1 if $a<$b and 0 otherwise
+     */
+    public function compare(Fraction $fraction) {
+        $a = $this->getDenominator();
+        $b = $fraction->getDenominator();
+
+        // calculate gcd
+        $gcd = $this->calculateGreatestCommonDivisor($a, $b);
+
+        // calculate lcm from gcd: GCD(a, b) * LCM(a, b) = a * b
+        $lcm = bcdiv(bcmul($a, $b, 0), $gcd, 0);
+
+        // compare numerators multiplied by lcm/denominator
+        return static::cmp(
+            bcmul($this->getNumerator(), bcdiv($lcm, $a, 0), 0),
+            bcmul($fraction->getNumerator(), bcdiv($lcm, $b, 0), 0)
+        );
+    }
+
+    /**
+     * Is fraction greater than one from argument
+     *
+     * @param  Fraction $fraction
+     * @return boolean
+     */
+    public function isGt(Fraction $fraction) {
+        return $this->compare($fraction) == 1;
+    }
+
+    /**
+     * Is fraction greater or equal than one from argument
+     *
+     * @param  Fraction $fraction
+     * @return boolean
+     */
+    public function isGte(Fraction $fraction) {
+        return $this->compare($fraction) > 0;
+    }
+
+    /**
+     * Is fraction smaller than one from argument
+     *
+     * @param  Fraction $fraction
+     * @return boolean
+     */
+    public function isLt(Fraction $fraction) {
+        return $this->compare($fraction) == -1;
+    }
+
+    /**
+     * Is fraction smaller or equal than one from argument
+     *
+     * @param  Fraction $fraction
+     * @return boolean
+     */
+    public function isLte(Fraction $fraction) {
+        return $this->compare($fraction) < 0;
+    }
+
+    /**
+     * Are fractions equal
+     *
+     * @param  Fraction $fraction
+     * @return boolean
+     */
+    public function isEq(Fraction $fraction) {
+        return $this->compare($fraction) == 0;
     }
 }

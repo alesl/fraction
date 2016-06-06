@@ -30,8 +30,8 @@ class FractionTest extends \PHPUnit_Framework_TestCase
         $half = new Fraction(1, 2);
 
         $this->assertEquals('1/2', (string) $half);
-        $this->assertSame(1, $half->getNumerator());
-        $this->assertSame(2, $half->getDenominator());
+        $this->assertSame('1', $half->getNumerator());
+        $this->assertSame('2', $half->getDenominator());
     }
 
     /**
@@ -210,8 +210,8 @@ class FractionTest extends \PHPUnit_Framework_TestCase
     {
         $fraction = Fraction::fromFloat($float);
 
-        $this->assertSame($numerator, $fraction->getNumerator());
-        $this->assertSame($denominator, $fraction->getDenominator());
+        $this->assertSame((string)$numerator, $fraction->getNumerator());
+        $this->assertSame((string)$denominator, $fraction->getDenominator());
     }
 
     /**
@@ -262,6 +262,8 @@ class FractionTest extends \PHPUnit_Framework_TestCase
     public function testBadDenominator($denominator)
     {
         $fraction = new Fraction(1, $denominator);
+        echo "\n\n";
+        var_dump($denominator);
     }
 
     /**
@@ -385,7 +387,6 @@ class FractionTest extends \PHPUnit_Framework_TestCase
             array(''),
             array(' '),
             array(1.0),
-            array('5'),
             array('5i'),
             array('hello'),
         );
@@ -647,6 +648,37 @@ class FractionTest extends \PHPUnit_Framework_TestCase
             [4, 2, 4, 2, true],
             [2605020, 159780620, 130251, 7989031, true],
             [-2605020, 159780620, -130251, 7989031, true],
+        ];
+    }
+
+    /**
+     * Test compare fractions
+     *
+     * @dataProvider compareProvider
+     */
+    public function testCompare(
+          $numerator1,
+          $denominator1,
+          $numerator2,
+          $denominator2,
+          $result) {
+
+        $fraction = new Fraction($numerator1, $denominator1);
+
+        $this->assertSame($result, $fraction->compare(new Fraction($numerator2, $denominator2)));
+    }
+
+    /**
+     * compareProvider
+     *
+     * @return array
+     */
+    public static function compareProvider() {
+        return [
+            [1, 2, 1, 2, 0],
+            [3, 2, 5, 2, -1],
+            [1, 19, 3, 2, -1],
+            [3, 2, 1, 19, 1],
         ];
     }
 }
