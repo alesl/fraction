@@ -373,10 +373,10 @@ class Fraction
      */
     public static function fromFloat($float)
     {
-        if (is_float($float)) {
+        if (is_float($float) || is_int($float)) {
 
         } else if (is_string($float)) {
-          if (!preg_match('#^-?(\d+)(\.\d+)?$#', $float)) {
+          if (!preg_match('#^-?\d+(\.\d+)?$#', $float)) {
             throw new InvalidArgumentException(
                 'Argument passed is not a numeric value.'
             );
