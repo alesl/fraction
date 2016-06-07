@@ -23,6 +23,42 @@ use Phospr\Exception\Fraction\InvalidNumeratorException;
  */
 class Fraction
 {
+    // Rounds away from zero
+    const ROUND_UP         = 0;
+
+    // Rounds towards zero
+    const ROUND_DOWN       = 1;
+
+    // Rounds towards Infinity
+    const ROUND_CEIL       = 2;
+
+    // Rounds towards -Infinity
+    const ROUND_FLOOR      = 3;
+
+    // Rounds towards nearest neighbour.
+    // If equidistant, rounds away from zero
+    const ROUND_HALF_UP    = 4;
+
+    // Rounds towards nearest neighbour.
+    // If equidistant, rounds towards zero
+    const ROUND_HALF_DOWN  = 5;
+
+    // Rounds towards nearest neighbour.
+    // If equidistant, rounds towards even neighbour
+    const ROUND_HALF_EVEN  = 6;
+
+    // Rounds towards nearest neighbour.
+    // If equidistant, rounds towards odd neighbour
+    const ROUND_HALF_ODD   = 7;
+
+    // Rounds towards nearest neighbour.
+    // If equidistant, rounds towards Infinity
+    const ROUND_HALF_CEIL  = 8;
+
+    // Rounds towards nearest neighbour.
+    // If equidistant, rounds towards -Infinity
+    const ROUND_HALF_FLOOR = 9;
+
     /**
      * From string regex pattern
      *
@@ -337,28 +373,40 @@ class Fraction
      */
     public static function fromFloat($float)
     {
+        if (is_float($float)) {
+
+        } else if (is_string($float)) {
+          if (!preg_match('#^-?(\d+)(\.\d+)?$#', $float)) {
+            throw new InvalidArgumentException(
+                'Argument passed is not a numeric value.'
+            );
+          }
+        } else {
+          throw new InvalidArgumentException(
+              'Argument passed is not a numeric value.'
+          );
+        }
+
+
         if (static::is_int($float)) {
             return new self($float);
         }
 
-        if (!is_numeric($float)) {
-            throw new InvalidArgumentException(
-                'Argument passed is not a numeric value.'
-            );
-        }
-
         // Make sure the float is a float not scientific notation.
         // Limit a max of 8 chars to prevent float errors
-        $float = rtrim(sprintf('%.8F', $float), 0);
+        // (this is only needed if argument is actually float)
+        if (is_float($float)) {
+          $float = rtrim(sprintf('%.8F', $float), 0);
+        }
 
         // Find and grab the decimal space and everything after it
         $denominator = strstr($float, '.');
 
         // Pad a one with zeros for the length of the decimal places
         // ie  0.1 = 10; 0.02 = 100; 0.01234 = 100000;
-        $denominator = (int) str_pad('1', strlen($denominator), 0);
+        $denominator = str_pad('1', strlen($denominator), 0);
         // Multiply to get rid of the decimal places.
-        $numerator = (int) ($float*$denominator);
+        $numerator = bcmul($float, $denominator, 0);
 
         return new self($numerator, $denominator);
     }
@@ -575,5 +623,172 @@ class Fraction
      */
     public function isEq(Fraction $fraction) {
         return $this->compare($fraction) == 0;
+    }
+
+    /**
+     * Get value as fixed point decimal
+     * @param  integer $decimals precision
+     * @return string
+     */
+    public function toFixed($decimals, $roundingMode = 4) {
+      $numerator = $this->getNumerator();
+      $denominator = $this->getDenominator();
+
+      // calculate decimal with 1 more precision
+      $value = bcdiv($numerator, $denominator, $decimals+1);
+      $isPositive = static::sgn($value)>=0;
+
+      // split to digits
+      $digits = str_split($value, 1);
+
+      // remove negative sign
+      if (!$isPositive) {
+        $digits = array_slice($digits, 1);
+      }
+      $decimalPos = array_search('.', $digits);
+
+      // remove decimal point
+      array_splice($digits, $decimalPos, 1);
+
+      $extraDigit = array_pop($digits); // extra rounding digit
+      $lastDigit = $digits[ sizeof($digits)-1 ];
+
+      // if already 0, no rounding is needed
+      if ($extraDigit==0) {
+        return substr($value, 0, -1);
+      }
+
+      $roundNearest = function($extraDigit) {
+        if ($extraDigit>5) {
+          return 1;
+        }
+        return 0;
+      };
+
+      switch ($roundingMode) {
+        // Rounds away from zero
+        case static::ROUND_UP:
+          $lastDigit++;
+          break;
+
+        // Rounds towards zero
+        case static::ROUND_DOWN:
+          break;
+
+        // Rounds towards Infinity
+        case static::ROUND_CEIL:
+          if ($isPositive) {
+            $lastDigit++;
+          }
+          break;
+
+        // Rounds towards -Infinity
+        case static::ROUND_FLOOR:
+          if (!$isPositive) {
+            $lastDigit++;
+          }
+          break;
+
+        // Rounds towards nearest neighbour.
+        // If equidistant, rounds away from zero
+        case static::ROUND_HALF_UP:
+          if ($extraDigit==5) {
+            $lastDigit++;
+          } else {
+            $lastDigit += $roundNearest($extraDigit);
+          }
+          break;
+
+        // Rounds towards nearest neighbour.
+        // If equidistant, rounds towards zero
+        case static::ROUND_HALF_DOWN:
+          if ($extraDigit==5) {
+
+          } else {
+            $lastDigit += $roundNearest($extraDigit);
+          }
+          break;
+
+        // Rounds towards nearest neighbour.
+        // If equidistant, rounds towards even neighbour
+        case static::ROUND_HALF_EVEN:
+          if ($extraDigit==5) {
+            if ($lastDigit%2==1) {
+              $lastDigit++;
+            }
+          } else {
+            $lastDigit += $roundNearest($extraDigit);
+          }
+          break;
+
+        // Rounds towards nearest neighbour.
+        // If equidistant, rounds towards odd neighbour
+        case static::ROUND_HALF_ODD:
+          if ($extraDigit==5) {
+            if ($lastDigit%2==0) {
+              $lastDigit++;
+            }
+          } else {
+            $lastDigit += $roundNearest($extraDigit);
+          }
+          break;
+
+        // Rounds towards nearest neighbour.
+        // If equidistant, rounds towards Infinity
+        case static::ROUND_HALF_CEIL:
+          if ($extraDigit==5) {
+            $lastDigit++;
+          } else {
+            $lastDigit += $roundNearest($extraDigit);
+          }
+          break;
+
+        // Rounds towards nearest neighbour.
+        // If equidistant, rounds towards -Infinity
+        case static::ROUND_HALF_FLOOR:
+          if ($extraDigit==5) {
+            if (!$isPositive) {
+              $lastDigit++;
+            }
+          } else {
+            $lastDigit += $roundNearest($extraDigit);
+          }
+          break;
+
+        default:
+          return null;
+      }
+
+      $digits[ sizeof($digits)-1 ] = $lastDigit;
+
+      // handle overflow
+      $carry = 0;
+      for ($ii=sizeof($digits)-1; $ii>=0; $ii--) {
+        $digits[$ii] += $carry;
+        if ($digits[$ii]>9) {
+          $digits[$ii] = 0;
+          $carry = 1;
+        } else {
+          $carry = 0;
+        }
+      }
+
+      // add extra digit, if carry still exists
+      if ($carry==1) {
+        array_unshift($digits, 1);
+        $decimalPos++;
+      }
+
+      // inject back decimal point
+      if ($decimals>0) {
+        array_splice($digits, $decimalPos, 0, ['.']);
+      }
+
+      $result = implode('', $digits);
+      if (!$isPositive && $result!=='0') {
+        $result = "-$result";
+      }
+
+      return $result;
     }
 }
