@@ -655,7 +655,7 @@ class Fraction
 
       // if already 0, no rounding is needed
       if ($extraDigit==0) {
-        return substr($value, 0, -1);
+        return rtrim(substr($value, 0, -1), '.');
       }
 
       $roundNearest = function($extraDigit) {
