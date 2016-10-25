@@ -592,7 +592,7 @@ class Fraction
      * @return boolean
      */
     public function isGte(Fraction $fraction) {
-        return $this->compare($fraction) > 0;
+        return $this->compare($fraction) >= 0;
     }
 
     /**
@@ -612,7 +612,7 @@ class Fraction
      * @return boolean
      */
     public function isLte(Fraction $fraction) {
-        return $this->compare($fraction) < 0;
+        return $this->compare($fraction) <= 0;
     }
 
     /**
